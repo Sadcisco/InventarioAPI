@@ -1,6 +1,7 @@
-from flask import Blueprint, jsonify
+from flask import Blueprint, jsonify, request
 from .models import InventarioGeneral, EquipoComputacional, Celular, Impresora
 from . import db
+from datetime import datetime
 
 api = Blueprint('api', __name__)
 
@@ -81,6 +82,51 @@ def get_inventario_general():
             })
 
         return jsonify(data)
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+# ---------------------------------------
+# NUEVA RUTA POST PARA AGREGAR EQUIPOS
+# ---------------------------------------
+
+@api.route("/inventario", methods=["POST"])
+def agregar_equipo_computacional():
+    try:
+        data = request.get_json()
+
+        nuevo_equipo = EquipoComputacional(
+            codigo_interno = data.get("codigo_interno"),
+            marca = data.get("marca"),
+            modelo = data.get("modelo"),
+            procesador = data.get("procesador"),
+            ram = data.get("ram"),
+            disco_duro = data.get("disco_duro"),
+            sistema_operativo = data.get("sistema_operativo"),
+            office = data.get("office"),
+            antivirus = data.get("antivirus"),
+            drive = data.get("drive"),
+            nombre_equipo = data.get("nombre_equipo"),
+            serial_number = data.get("serial_number"),
+            fecha_revision = datetime.strptime(data.get("fecha_revision"), "%Y-%m-%d") if data.get("fecha_revision") else None,
+            entregado_por = data.get("entregado_por"),
+            comentarios = data.get("comentarios")
+        )
+        db.session.add(nuevo_equipo)
+        db.session.commit()
+
+        nuevo_inventario = InventarioGeneral(
+            tipo_equipo = "Computacional",
+            id_registro = nuevo_equipo.id_equipo,
+            estado = "SinAsignar",
+            fecha_ingreso = datetime.now(),
+            observaciones = "Equipo agregado desde Flutter"
+        )
+        db.session.add(nuevo_inventario)
+        db.session.commit()
+
+        return jsonify({"mensaje": "Equipo agregado exitosamente"}), 201
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
