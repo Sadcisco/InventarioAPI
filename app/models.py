@@ -1,4 +1,37 @@
 from . import db
+from datetime import datetime
+from flask_marshmallow import Marshmallow
+import bcrypt
+
+ma = Marshmallow()
+
+class Usuario(db.Model):
+    __tablename__ = 'usuarios_sistema'
+    id = db.Column(db.Integer, primary_key=True)
+    usuario = db.Column(db.String(50), unique=True, nullable=False)
+    contraseña_hash = db.Column(db.String(255), nullable=False)
+    nombre = db.Column(db.String(100))
+    id_rol = db.Column(db.Integer, db.ForeignKey('roles.id'))
+    id_sucursal = db.Column(db.Integer, db.ForeignKey('sucursales.id_sucursal'))
+    sucursal_activa = db.Column(db.Integer, db.ForeignKey('sucursales.id_sucursal'))
+    activo = db.Column(db.Boolean, default=True)
+    
+    # Relaciones
+    rol = db.relationship('Rol', backref='usuarios')
+    sucursal = db.relationship('Sucursal', foreign_keys=[id_sucursal], backref='usuarios')
+    sucursal_activa_rel = db.relationship('Sucursal', foreign_keys=[sucursal_activa])
+
+    def set_password(self, password):
+        self.contraseña_hash = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+    
+    def check_password(self, password):
+        return bcrypt.checkpw(password.encode('utf-8'), self.contraseña_hash.encode('utf-8'))
+
+class Rol(db.Model):
+    __tablename__ = 'roles'
+    id = db.Column(db.Integer, primary_key=True)
+    nombre = db.Column(db.String(50), nullable=False, unique=True)
+    descripcion = db.Column(db.String(255))
 
 class Area(db.Model):
     __tablename__ = 'areas'
@@ -19,7 +52,7 @@ class InventarioGeneral(db.Model):
     tipo_equipo = db.Column(db.Enum('Computacional', 'Celular', 'Impresora'), nullable=False)
     id_registro = db.Column(db.Integer, nullable=False)
     estado = db.Column(db.Enum('DeBaja', 'Asignado', 'SinAsignar', 'EnReparacion'), default='SinAsignar')
-    id_usuario_responsable = db.Column(db.Integer, db.ForeignKey('usuarios.id_usuario'))
+    id_usuario_responsable = db.Column(db.Integer, db.ForeignKey('usuarios_sistema.id'))
     id_area_responsable = db.Column(db.Integer, db.ForeignKey('areas.id_area'))
     id_sucursal_ubicacion = db.Column(db.Integer, db.ForeignKey('sucursales.id_sucursal'))
     fecha_ingreso = db.Column(db.Date)
@@ -67,3 +100,63 @@ class Impresora(db.Model):
     serial_number = db.Column(db.String(100))
     observaciones = db.Column(db.Text)
 
+class Consumible(db.Model):
+    __tablename__ = 'consumibles'
+    id_consumible = db.Column(db.Integer, primary_key=True)
+    tipo = db.Column(db.Enum('Toner', 'Tambor'), nullable=False)
+    marca = db.Column(db.String(100))
+    modelo = db.Column(db.String(100))
+    stock_actual = db.Column(db.Integer, default=0)
+    stock_minimo = db.Column(db.Integer, default=0)
+    id_sucursal_stock = db.Column(db.Integer, db.ForeignKey('sucursales.id_sucursal'))
+    
+    # Relación
+    sucursal = db.relationship('Sucursal', backref='consumibles')
+
+class HistorialMovimiento(db.Model):
+    __tablename__ = 'historial_movimientos'
+    id = db.Column(db.Integer, primary_key=True)
+    tipo_equipo = db.Column(db.String(50), nullable=False)
+    id_equipo = db.Column(db.Integer, nullable=False)
+    responsable_anterior = db.Column(db.Integer, db.ForeignKey('usuarios_sistema.id'))
+    responsable_nuevo = db.Column(db.Integer, db.ForeignKey('usuarios_sistema.id'))
+    fecha = db.Column(db.DateTime, default=datetime.utcnow)
+    observaciones = db.Column(db.Text)
+
+# Schemas para serialización
+class UsuarioSchema(ma.SQLAlchemyAutoSchema):
+    class Meta:
+        model = Usuario
+        exclude = ('contraseña_hash',)
+
+class RolSchema(ma.SQLAlchemyAutoSchema):
+    class Meta:
+        model = Rol
+
+class AreaSchema(ma.SQLAlchemyAutoSchema):
+    class Meta:
+        model = Area
+
+class SucursalSchema(ma.SQLAlchemyAutoSchema):
+    class Meta:
+        model = Sucursal
+
+class EquipoComputacionalSchema(ma.SQLAlchemyAutoSchema):
+    class Meta:
+        model = EquipoComputacional
+
+class CelularSchema(ma.SQLAlchemyAutoSchema):
+    class Meta:
+        model = Celular
+
+class ImpresoraSchema(ma.SQLAlchemyAutoSchema):
+    class Meta:
+        model = Impresora
+
+class ConsumibleSchema(ma.SQLAlchemyAutoSchema):
+    class Meta:
+        model = Consumible
+
+class HistorialMovimientoSchema(ma.SQLAlchemyAutoSchema):
+    class Meta:
+        model = HistorialMovimiento
