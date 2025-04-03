@@ -11,7 +11,7 @@ def create_app():
     app = Flask(__name__)
     app.config.from_object(Config)
 
-    CORS(app)
+    CORS(app, resources={r"/*": {"origins": "*"}})
     db.init_app(app)
     jwt.init_app(app)
 
@@ -33,7 +33,7 @@ def create_app():
     from .routes.historial import historial_bp
     
     app.register_blueprint(auth_bp, url_prefix='/api/auth')
-    app.register_blueprint(equipos_bp, url_prefix='/api/equipos')
+    app.register_blueprint(equipos_bp, url_prefix='/inventario')
     app.register_blueprint(celulares_bp, url_prefix='/api/celulares')
     app.register_blueprint(impresoras_bp, url_prefix='/api/impresoras')
     app.register_blueprint(consumibles_bp, url_prefix='/api/consumibles')

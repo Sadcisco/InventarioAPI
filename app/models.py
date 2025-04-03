@@ -11,15 +11,11 @@ class Usuario(db.Model):
     usuario = db.Column(db.String(50), unique=True, nullable=False)
     contraseña_hash = db.Column(db.String(255), nullable=False)
     nombre = db.Column(db.String(100))
-    id_rol = db.Column(db.Integer, db.ForeignKey('roles.id'))
     id_sucursal = db.Column(db.Integer, db.ForeignKey('sucursales.id_sucursal'))
-    sucursal_activa = db.Column(db.Integer, db.ForeignKey('sucursales.id_sucursal'))
     activo = db.Column(db.Boolean, default=True)
     
     # Relaciones
-    rol = db.relationship('Rol', backref='usuarios')
     sucursal = db.relationship('Sucursal', foreign_keys=[id_sucursal], backref='usuarios')
-    sucursal_activa_rel = db.relationship('Sucursal', foreign_keys=[sucursal_activa])
 
     def set_password(self, password):
         self.contraseña_hash = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
@@ -57,6 +53,11 @@ class InventarioGeneral(db.Model):
     id_sucursal_ubicacion = db.Column(db.Integer, db.ForeignKey('sucursales.id_sucursal'))
     fecha_ingreso = db.Column(db.Date)
     observaciones = db.Column(db.Text)
+
+    # Relaciones
+    usuario_responsable = db.relationship('Usuario', backref='equipos_asignados')
+    area_responsable = db.relationship('Area', backref='equipos_asignados')
+    sucursal = db.relationship('Sucursal', backref='equipos_ubicados')
 
 class EquipoComputacional(db.Model):
     __tablename__ = 'equipos_computacionales'

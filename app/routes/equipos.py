@@ -1,10 +1,10 @@
 from flask import Blueprint, jsonify, request
-from flask_jwt_extended import jwt_required, get_jwt_identity
-from ..models import (
-    EquipoComputacional, EquipoComputacionalSchema, 
-    InventarioGeneral, Usuario, HistorialMovimiento
+from flask_jwt_extended import jwt_required
+from app import db
+from app.models import (
+    InventarioGeneral, EquipoComputacional, Celular, Impresora,
+    Usuario, Area, Sucursal, EquipoComputacionalSchema, HistorialMovimiento
 )
-from .. import db
 from datetime import datetime
 
 equipos_bp = Blueprint('equipos', __name__)
@@ -19,44 +19,126 @@ def check_admin_permission(usuario_id):
     return True
 
 @equipos_bp.route('/', methods=['GET'])
-@jwt_required()
 def get_equipos():
     try:
-        usuario_id = get_jwt_identity()
-        usuario = Usuario.query.get(usuario_id)
-        
-        if not usuario:
-            return jsonify({"error": "Usuario no autorizado"}), 401
-            
-        # Filtrar por sucursal activa del usuario
-        id_sucursal = usuario.sucursal_activa
-
-        # Obtener todos los registros de inventario general que sean equipos computacionales
-        inventario = InventarioGeneral.query.filter_by(
-            tipo_equipo='Computacional', 
-            id_sucursal_ubicacion=id_sucursal
-        ).all()
-        
+        # Obtener todos los equipos
+        equipos = db.session.query(InventarioGeneral).all()
+        print(f"Se encontraron {len(equipos)} equipos")
         result = []
-        for item in inventario:
-            equipo = EquipoComputacional.query.get(item.id_registro)
-            if equipo:
-                equipo_data = equipo_schema.dump(equipo)
-                equipo_data.update({
-                    "id_inventario": item.id_inventario,
-                    "estado": item.estado,
-                    "id_usuario_responsable": item.id_usuario_responsable,
-                    "id_area_responsable": item.id_area_responsable,
-                    "id_sucursal_ubicacion": item.id_sucursal_ubicacion,
-                    "fecha_ingreso": item.fecha_ingreso.isoformat() if item.fecha_ingreso else None,
-                    "observaciones": item.observaciones
-                })
-                result.append(equipo_data)
-                
-        return jsonify(result), 200
-        
+
+        for equipo in equipos:
+            # Preparar el resultado base
+            equipo_data = {
+                'id': equipo.id_inventario,
+                'tipo': equipo.tipo_equipo,
+                'estado': equipo.estado,
+                'fecha_ingreso': equipo.fecha_ingreso.strftime('%Y-%m-%d') if equipo.fecha_ingreso else None,
+                'observaciones': equipo.observaciones
+            }
+
+            # Obtener detalles específicos según el tipo
+            try:
+                if equipo.tipo_equipo == 'Computacional':
+                    equipo_detalle = db.session.query(EquipoComputacional).get(equipo.id_registro)
+                    if equipo_detalle:
+                        equipo_data['detalle'] = {
+                            'codigo_interno': equipo_detalle.codigo_interno,
+                            'marca': equipo_detalle.marca,
+                            'modelo': equipo_detalle.modelo,
+                            'procesador': equipo_detalle.procesador,
+                            'ram': equipo_detalle.ram,
+                            'disco_duro': equipo_detalle.disco_duro,
+                            'sistema_operativo': equipo_detalle.sistema_operativo,
+                            'office': equipo_detalle.office,
+                            'antivirus': equipo_detalle.antivirus,
+                            'drive': equipo_detalle.drive,
+                            'nombre_equipo': equipo_detalle.nombre_equipo,
+                            'serial_number': equipo_detalle.serial_number,
+                            'fecha_revision': equipo_detalle.fecha_revision.strftime('%Y-%m-%d') if equipo_detalle.fecha_revision else None,
+                            'entregado_por': equipo_detalle.entregado_por,
+                            'comentarios': equipo_detalle.comentarios
+                        }
+                elif equipo.tipo_equipo == 'Celular':
+                    equipo_detalle = db.session.query(Celular).get(equipo.id_registro)
+                    if equipo_detalle:
+                        equipo_data['detalle'] = {
+                            'codigo_interno': equipo_detalle.codigo_interno,
+                            'marca': equipo_detalle.marca,
+                            'modelo': equipo_detalle.modelo,
+                            'imei': equipo_detalle.imei,
+                            'numero_linea': equipo_detalle.numero_linea,
+                            'sistema_operativo': equipo_detalle.sistema_operativo,
+                            'capacidad_almacenamiento': equipo_detalle.capacidad_almacenamiento,
+                            'comentarios': equipo_detalle.comentarios
+                        }
+                elif equipo.tipo_equipo == 'Impresora':
+                    equipo_detalle = db.session.query(Impresora).get(equipo.id_registro)
+                    if equipo_detalle:
+                        equipo_data['detalle'] = {
+                            'codigo_interno': equipo_detalle.codigo_interno,
+                            'marca': equipo_detalle.marca,
+                            'modelo': equipo_detalle.modelo,
+                            'tipo_conexion': equipo_detalle.tipo_conexion,
+                            'ip_asignada': equipo_detalle.ip_asignada,
+                            'serial_number': equipo_detalle.serial_number,
+                            'observaciones': equipo_detalle.observaciones
+                        }
+            except Exception as e:
+                print(f"Error al obtener detalles del equipo {equipo.id_inventario}: {str(e)}")
+                equipo_data['detalle'] = {}
+
+            # Obtener información del usuario responsable
+            try:
+                if equipo.id_usuario_responsable:
+                    usuario = db.session.query(Usuario).get(equipo.id_usuario_responsable)
+                    if usuario:
+                        equipo_data['usuario_responsable'] = {
+                            'id': usuario.id,
+                            'nombre': usuario.nombre,
+                            'usuario': usuario.usuario
+                        }
+            except Exception as e:
+                print(f"Error al obtener usuario del equipo {equipo.id_inventario}: {str(e)}")
+
+            # Obtener información del área
+            try:
+                if equipo.id_area_responsable:
+                    area = db.session.query(Area).get(equipo.id_area_responsable)
+                    if area:
+                        equipo_data['area_responsable'] = {
+                            'id': area.id_area,
+                            'nombre': area.nombre_area
+                        }
+            except Exception as e:
+                print(f"Error al obtener área del equipo {equipo.id_inventario}: {str(e)}")
+
+            # Obtener información de la sucursal
+            try:
+                if equipo.id_sucursal_ubicacion:
+                    sucursal = db.session.query(Sucursal).get(equipo.id_sucursal_ubicacion)
+                    if sucursal:
+                        equipo_data['sucursal'] = {
+                            'id': sucursal.id_sucursal,
+                            'nombre': sucursal.nombre_sucursal,
+                            'direccion': sucursal.direccion,
+                            'region': sucursal.region
+                        }
+            except Exception as e:
+                print(f"Error al obtener sucursal del equipo {equipo.id_inventario}: {str(e)}")
+
+
+
+            result.append(equipo_data)
+
+        print(f"Se procesaron {len(result)} equipos correctamente")
+        return jsonify(result)
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        print(f"Error general en get_equipos: {str(e)}")
+        return jsonify({
+            'error': str(e),
+            'tipo': type(e).__name__,
+            'detalles': getattr(e, 'args', [])
+        }), 500
 
 @equipos_bp.route('/<int:id>', methods=['GET'])
 @jwt_required()
